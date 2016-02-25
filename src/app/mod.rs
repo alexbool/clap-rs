@@ -17,7 +17,7 @@ use std::borrow::Borrow;
 #[cfg(feature = "yaml")]
 use yaml_rust::Yaml;
 
-use args::{Arg, Any, ArgGroup, ArgMatches, ArgMatcher};
+use args::{Arg, ArgGroup, ArgMatches, ArgMatcher};
 use app::parser::Parser;
 use errors::Error;
 use errors::Result as ClapResult;
@@ -697,7 +697,9 @@ impl<'a, 'b> App<'a, 'b> {
         self.p.verify_positionals();
         // If there are global arguments, we need to propgate them down to subcommands
         // before parsing incase we run into a subcommand
-        self.p.propogate_globals();
+        {
+            self.p.propogate_globals();
+        }
 
         let mut matcher = ArgMatcher::new();
 

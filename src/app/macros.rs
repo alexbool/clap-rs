@@ -11,23 +11,23 @@ macro_rules! remove_overriden {
     };
     ($_self:ident, $name:expr) => {
         debugln!("macro=remove_overriden!;");
-        if let Some(ref o) = $_self.opts.iter().filter(|o| o.name == *$name).next() {
+        if let Some(ref o) = $_self.opts.iter().filter(|o| o.name == $name).next() {
             remove_overriden!(@arg $_self, o);
-        } else if let Some(ref f) = $_self.flags.iter().filter(|f| f.name == *$name).next() {
+        } else if let Some(ref f) = $_self.flags.iter().filter(|f| f.name == $name).next() {
             remove_overriden!(@arg $_self, f);
-        } else if let Some(p) = $_self.positionals.values().filter(|p| p.name == *$name).next() {
+        } else if let Some(p) = $_self.positionals.values().filter(|p| p.name == $name).next() {
             remove_overriden!(@arg $_self, p);
         }
     };
 }
 
 macro_rules! arg_post_processing {
-    ($me:ident, $arg:ident, $matcher:ident) => {
+    ($me:ident, $arg:expr, $matcher:ident) => {
         debugln!("macro=arg_post_processing!;");
         // Handle POSIX overrides
         debug!("Is '{}' in overrides...", $arg.to_string());
-        if $me.overrides.contains(&$arg.name()) {
-            if let Some(ref name) = $me.overriden_from($arg.name(), $matcher) {
+        if $me.overrides.contains(&$arg.name) {
+            if let Some(name) = $me.overriden_from($arg.name, $matcher) {
                 sdebugln!("Yes by {}", name);
                 $matcher.remove(name);
                 remove_overriden!($me, name);
@@ -36,17 +36,17 @@ macro_rules! arg_post_processing {
 
         // Add overrides
         debug!("Does '{}' have overrides...", $arg.to_string());
-        if let Some(or) = $arg.overrides() {
+        if let Some(ref or) = $arg.overrides {
             sdebugln!("Yes");
-            $matcher.remove_all(or);
-            for pa in or { remove_overriden!($me, pa); }
+            $matcher.remove_all(&*or);
+            for pa in or { remove_overriden!($me, *pa); }
             $me.overrides.extend(or);
             vec_remove_all!($me.required, or);
         } else { sdebugln!("No"); }
 
         // Handle conflicts
         debug!("Does '{}' have conflicts...", $arg.to_string());
-        if let Some(bl) = $arg.blacklist() {
+        if let Some(ref bl) = $arg.blacklist {
             sdebugln!("Yes");
             $me.blacklist.extend(bl);
             vec_remove_all!($me.overrides, bl);
@@ -56,7 +56,7 @@ macro_rules! arg_post_processing {
         // Add all required args which aren't already found in matcher to the master
         // list
         debug!("Does '{}' have requirements...", $arg.to_string());
-        if let Some(reqs) = $arg.requires() {
+        if let Some(ref reqs) = $arg.requires {
             for n in reqs {
                 if $matcher.contains(&n) {
                     sdebugln!("\tYes '{}' but it's already met", n);
@@ -72,13 +72,12 @@ macro_rules! arg_post_processing {
 }
 
 macro_rules! _handle_group_reqs{
-    ($me:ident, $arg:ident) => ({
-        use args::Any;
+    ($me:ident, $arg:expr) => ({
         debugln!("macro=_handle_group_reqs!;");
         for grp in $me.groups.values() {
             let mut found = false;
             for name in &grp.args {
-                if name == &$arg.name() {
+                if name == &$arg.name {
                     vec_remove!($me.required, name);
                     if let Some(ref reqs) = grp.requires {
                         $me.required.extend(reqs);
@@ -93,7 +92,7 @@ macro_rules! _handle_group_reqs{
             if found {
                 vec_remove_all!($me.required, &grp.args);
                 $me.blacklist.extend(&grp.args);
-                vec_remove!($me.blacklist, &$arg.name());
+                vec_remove!($me.blacklist, &$arg.name);
             }
         }
     })
@@ -106,5 +105,35 @@ macro_rules! validate_multiples {
             // Not the first time, and we don't allow multiples
             return Err(Error::unexpected_multiple_usage($a, &*$_self.create_current_usage($m)))
         }
+    };
+}
+
+macro_rules! parse_positional {
+    ($_self:ident, $p:expr, $arg_os:ident, $pos_only:ident, $pos_counter:ident, $matcher:ident) => {
+        debugln!("fn=parse_positional;");
+        if $matcher.contains(&$p.name) && !$matcher.needs_more_vals($p) {
+            // Not the first time, and we don't allow multiples
+            return Err(Error::unexpected_multiple_usage($p, &*$_self.create_current_usage($matcher)))
+        }
+
+        if let Err(e) = $_self.add_val_to_arg($p, &$arg_os, $matcher) {
+            return Err(e);
+        }
+        if !$pos_only &&
+           ($_self.settings.is_set(AppSettings::TrailingVarArg) &&
+            $pos_counter == $_self.positionals.len()) {
+            $pos_only = true;
+        }
+
+        $matcher.inc_occurrence_of($p.name);
+        let _ = $_self.groups_for_arg($p.name).and_then(|vec| Some($matcher.inc_occurrences_of(&*vec)));
+        arg_post_processing!($_self, $p, $matcher);
+
+        debug!("Positional needs more vals...");
+        // Only increment the positional counter if it doesn't allow multiples
+        if !$matcher.needs_more_vals($p) {
+            sdebugln!("Yes");
+            $pos_counter += 1;
+        } else { sdebugln!("No"); }
     };
 }

@@ -8,7 +8,7 @@ use std::result::Result as StdResult;
 
 use fmt::Format;
 use suggestions;
-use args::Any;
+use args::Arg;
 
 /// Short hand for result type
 pub type Result<T> = StdResult<T, Error>;
@@ -332,12 +332,11 @@ impl Error {
     }
 
     #[doc(hidden)]
-    pub fn argument_conflict<'a, 'b, A, O, U>(arg: &A, other: Option<O>, usage: U) -> Self
-        where A: Any<'a, 'b>,
-              O: Into<String>,
+    pub fn argument_conflict<'a, 'b, O, U>(arg: &Arg<'a, 'b>, other: Option<O>, usage: U) -> Self
+        where O: Into<String>,
               U: Display
     {
-        let mut v = vec![arg.name().to_owned()];
+        let mut v = vec![arg.name.to_owned()];
         Error {
             message: format!("{} The argument '{}' cannot be used with {}\n\n\
                             {}\n\n\
@@ -360,9 +359,8 @@ impl Error {
     }
 
     #[doc(hidden)]
-    pub fn empty_value<'a, 'b, A, U>(arg: &A, usage: U) -> Self
-        where A: Any<'a, 'b>,
-              U: Display
+    pub fn empty_value<'a, 'b, U>(arg: &Arg<'a, 'b>, usage: U) -> Self
+        where U: Display
     {
         Error {
             message: format!("{} The argument '{}' requires a value but none was supplied\
@@ -374,15 +372,14 @@ impl Error {
                            usage,
                            Format::Good("--help")),
             kind: ErrorKind::EmptyValue,
-            info: Some(vec![arg.name().to_owned()]),
+            info: Some(vec![arg.name.to_owned()]),
         }
     }
 
     #[doc(hidden)]
-    pub fn invalid_value<'a, 'b, B, G, A, U>(bad_val: B, good_vals: &[G], arg: &A, usage: U) -> Self
+    pub fn invalid_value<'a, 'b, B, G, U>(bad_val: B, good_vals: &[G], arg: &Arg<'a, 'b>, usage: U) -> Self
         where B: AsRef<str>,
               G: AsRef<str> + Display,
-              A: Any<'a, 'b>,
               U: Display
     {
         let suffix = suggestions::did_you_mean_suffix(bad_val.as_ref(),
@@ -409,7 +406,7 @@ impl Error {
                            usage,
                            Format::Good("--help")),
             kind: ErrorKind::InvalidValue,
-            info: Some(vec![arg.name().to_owned(), bad_val.as_ref().to_owned()]),
+            info: Some(vec![arg.name.to_owned(), bad_val.as_ref().to_owned()]),
         }
     }
 
@@ -495,9 +492,8 @@ impl Error {
     }
 
     #[doc(hidden)]
-    pub fn too_many_values<'a, 'b, V, A, U>(val: V, arg: &A, usage: U) -> Self
+    pub fn too_many_values<'a, 'b, V, U>(val: V, arg: &Arg<'a, 'b>, usage: U) -> Self
         where V: AsRef<str> + Display + ToOwned,
-              A: Any<'a, 'b>,
               U: Display
     {
         let v = val.as_ref();
@@ -512,14 +508,13 @@ impl Error {
                            usage,
                            Format::Good("--help")),
             kind: ErrorKind::TooManyValues,
-            info: Some(vec![arg.name().to_owned(), v.to_owned()]),
+            info: Some(vec![arg.name.to_owned(), v.to_owned()]),
         }
     }
 
     #[doc(hidden)]
-    pub fn too_few_values<'a, 'b, A, U>(arg: &A, min_vals: u64, curr_vals: usize, usage: U) -> Self
-        where A: Any<'a, 'b>,
-              U: Display
+    pub fn too_few_values<'a, 'b, U>(arg: &Arg<'a, 'b>, min_vals: u64, curr_vals: usize, usage: U) -> Self
+        where U: Display
     {
         Error {
             message: format!("{} The argument '{}' requires at least {} values, but only {} w{} \
@@ -538,7 +533,7 @@ impl Error {
                            usage,
                            Format::Good("--help")),
             kind: ErrorKind::TooFewValues,
-            info: Some(vec![arg.name().to_owned()]),
+            info: Some(vec![arg.name.to_owned()]),
         }
     }
 
@@ -552,9 +547,8 @@ impl Error {
     }
 
     #[doc(hidden)]
-    pub fn wrong_number_of_values<'a, 'b, A, S, U>(arg: &A, num_vals: u64, curr_vals: usize, suffix: S, usage: U) -> Self
-        where A: Any<'a, 'b>,
-              S: Display,
+    pub fn wrong_number_of_values<'a, 'b, S, U>(arg: &Arg<'a, 'b>, num_vals: u64, curr_vals: usize, suffix: S, usage: U) -> Self
+        where S: Display,
               U: Display
     {
         Error {
@@ -570,14 +564,13 @@ impl Error {
                            usage,
                            Format::Good("--help")),
             kind: ErrorKind::WrongNumberOfValues,
-            info: Some(vec![arg.name().to_owned()]),
+            info: Some(vec![arg.name.to_owned()]),
         }
     }
 
     #[doc(hidden)]
-    pub fn unexpected_multiple_usage<'a, 'b, A, U>(arg: &A, usage: U) -> Self
-        where A: Any<'a, 'b>,
-              U: Display
+    pub fn unexpected_multiple_usage<'a, 'b, U>(arg: &Arg<'a, 'b>, usage: U) -> Self
+        where U: Display
     {
         Error {
             message: format!("{} The argument '{}' was provided more than once, but cannot \
@@ -589,7 +582,7 @@ impl Error {
                            usage,
                            Format::Good("--help")),
             kind: ErrorKind::UnexpectedMultipleUsage,
-            info: Some(vec![arg.name().to_owned()]),
+            info: Some(vec![arg.name.to_owned()]),
         }
     }
 

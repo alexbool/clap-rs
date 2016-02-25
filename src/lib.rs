@@ -406,6 +406,7 @@ extern crate yaml_rust;
 #[macro_use]
 extern crate bitflags;
 extern crate vec_map;
+#[cfg(feature = "wrap_help")]
 extern crate libc;
 
 #[cfg(feature = "yaml")]
@@ -424,6 +425,7 @@ mod fmt;
 mod suggestions;
 mod errors;
 mod osstringext;
+#[cfg(feature = "wrap_help")]
 mod term;
 
 const INTERNAL_ERROR_MSG: &'static str = "Fatal internal error. Please consider filing a bug \

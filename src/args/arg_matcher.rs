@@ -4,9 +4,8 @@ use std::ops::Deref;
 
 use vec_map::VecMap;
 
-use args::{ArgMatches, MatchedArg, SubCommand};
+use args::{ArgMatches, MatchedArg, SubCommand, Arg};
 use args::settings::ArgSettings;
-use args::{Any, HasValues};
 
 #[doc(hidden)]
 #[allow(missing_debug_implementations)]
@@ -51,7 +50,7 @@ impl<'a> ArgMatcher<'a> {
         self.0.usage = Some(usage);
     }
 
-    pub fn arg_names(&'a self) -> Vec<&'a str> {
+    pub fn arg_names<'b>(&'b self) -> Vec<&'a str> where 'b: 'a {
         self.0.args.keys().map(Deref::deref).collect()
     }
 
@@ -95,18 +94,17 @@ impl<'a> ArgMatcher<'a> {
         ma.vals.insert(len, val.to_owned());
     }
 
-    pub fn needs_more_vals<'b, A>(&self, o: &A) -> bool
-        where A: HasValues<'a, 'b> + Any<'a, 'b> {
-        if let Some(ma) = self.get(o.name()) {
-            let res = if let Some(num) = o.num_vals() {
+    pub fn needs_more_vals<'b>(&self, o: &Arg) -> bool {
+        if let Some(ma) = self.get(o.name) {
+            let res = if let Some(num) = o.num_vals {
                 return if o.is_set(ArgSettings::Multiple) {
                     ((ma.vals.len() as u64) % num) != 0
                 } else {
                     num != (ma.vals.len() as u64)
                 };
-            } else if let Some(num) = o.max_vals() {
+            } else if let Some(num) = o.max_vals {
                 !((ma.vals.len() as u64) > num)
-            } else if o.min_vals().is_some() {
+            } else if o.min_vals.is_some() {
                 true
             } else {
                 false

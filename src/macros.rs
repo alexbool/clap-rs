@@ -578,7 +578,7 @@ mod debug_macros {
 //    src/args/arg_builder/*.rs
 //    src/app/mod.rs
 macro_rules! write_spaces {
-    ($num:expr, $w:ident) => ({
+    ($num:expr, $w:expr) => ({
         debugln!("macro=write_spaces!;");
         for _ in 0..$num {
             try!(write!($w, " "));

@@ -1,6 +1,7 @@
 #[cfg(feature = "yaml")]
 use std::collections::BTreeMap;
 use std::rc::Rc;
+use std::fmt;
 
 #[cfg(feature = "yaml")]
 use yaml_rust::Yaml;
@@ -8,6 +9,7 @@ use vec_map::VecMap;
 
 use usage_parser::UsageParser;
 use args::settings::{ArgSettings, ArgFlags};
+use args::ArgKind;
 
 /// The abstract representation of a command line argument. Used to set all the options and
 /// relationships that define a valid argument for the program.
@@ -68,6 +70,8 @@ pub struct Arg<'a, 'b> where 'a: 'b {
     pub val_delim: Option<char>,
     #[doc(hidden)]
     pub default_val: Option<&'a str>,
+    #[doc(hidden)]
+    pub kind: ArgKind,
 }
 
 impl<'a, 'b> Default for Arg<'a, 'b> {
@@ -91,6 +95,7 @@ impl<'a, 'b> Default for Arg<'a, 'b> {
             settings: ArgFlags::new(),
             val_delim: Some(','),
             default_val: None,
+            kind: ArgKind::Flag,
         }
     }
 }
@@ -846,8 +851,18 @@ impl<'a, 'b> Arg<'a, 'b> {
     /// assert!(m.is_present("mode"));
     /// assert_eq!(m.value_of("mode"), Some("fast"));
     /// ```
-    pub fn takes_value(self, tv: bool) -> Self {
-        if tv { self.set(ArgSettings::TakesValue) } else { self.unset(ArgSettings::TakesValue) }
+    pub fn takes_value(mut self, tv: bool) -> Self {
+        if tv {
+            self.kind = if self.index.is_some() {
+                ArgKind::Pos
+            } else {
+                ArgKind::Opt
+            };
+            self.set(ArgSettings::TakesValue)
+        } else {
+            self.kind = ArgKind::Flag;
+            self.unset(ArgSettings::TakesValue)
+        }
     }
 
     /// Specifies the index of a positional argument **starting at** 1.
@@ -892,6 +907,7 @@ impl<'a, 'b> Arg<'a, 'b> {
     /// ```
     pub fn index(mut self, idx: u64) -> Self {
         self.index = Some(idx);
+        self.kind = ArgKind::Pos;
         self
     }
 
@@ -1120,8 +1136,8 @@ impl<'a, 'b> Arg<'a, 'b> {
         if ev {
             self.set(ArgSettings::EmptyValues)
         } else {
-            self = self.set(ArgSettings::TakesValue);
-            self.unset(ArgSettings::EmptyValues)
+            self.unsetb(ArgSettings::EmptyValues);
+            self.takes_value(true)
         }
     }
 
@@ -1218,7 +1234,7 @@ impl<'a, 'b> Arg<'a, 'b> {
         } else {
             self.possible_vals = Some(names.iter().map(|s| *s).collect::<Vec<_>>());
         }
-        self
+        self.takes_value(true)
     }
 
     /// Specifies a possible value for this argument, one at a time. At runtime, `clap` verifies
@@ -1272,7 +1288,7 @@ impl<'a, 'b> Arg<'a, 'b> {
         } else {
             self.possible_vals = Some(vec![name]);
         }
-        self
+        self.takes_value(true)
     }
 
     /// Specifies the name of the group the argument belongs to.
@@ -1342,7 +1358,7 @@ impl<'a, 'b> Arg<'a, 'b> {
     /// ```
     pub fn number_of_values(mut self, qty: u64) -> Self {
         self.num_vals = Some(qty);
-        self
+        self.takes_value(true)
     }
 
     /// Allows one to perform a custom validation on the argument value. You provide a closure which
@@ -1379,7 +1395,7 @@ impl<'a, 'b> Arg<'a, 'b> {
         where F: Fn(String) -> Result<(), String> + 'static
     {
         self.validator = Some(Rc::new(f));
-        self
+        self.takes_value(true)
     }
 
     /// Specifies the *maximum* number of values are for this argument. For example, if you had a
@@ -1435,7 +1451,7 @@ impl<'a, 'b> Arg<'a, 'b> {
     /// ```
     pub fn max_values(mut self, qty: u64) -> Self {
         self.max_vals = Some(qty);
-        self
+        self.takes_value(true)
     }
 
     /// Specifies the *minimum* number of values are for this argument. For example, if you had a
@@ -1491,7 +1507,7 @@ impl<'a, 'b> Arg<'a, 'b> {
     /// ```
     pub fn min_values(mut self, qty: u64) -> Self {
         self.min_vals = Some(qty);
-        self.set(ArgSettings::TakesValue)
+        self.takes_value(true)
     }
 
     /// Specifies whether or not an arugment should allow grouping of multiple values via a
@@ -1542,7 +1558,8 @@ impl<'a, 'b> Arg<'a, 'b> {
     pub fn use_delimiter(mut self, d: bool) -> Self {
         if d {
             self.val_delim = Some(',');
-            self.set(ArgSettings::UseValueDelimiter)
+            self.setb(ArgSettings::UseValueDelimiter);
+            self.takes_value(true)
         } else {
             self.val_delim = None;
             self.unset(ArgSettings::UseValueDelimiter)
@@ -1572,12 +1589,11 @@ impl<'a, 'b> Arg<'a, 'b> {
     /// assert_eq!(m.values_of("config").unwrap().collect::<Vec<_>>(), ["val1", "val2", "val3"])
     /// ```
     pub fn value_delimiter(mut self, d: &str) -> Self {
-        self = self.set(ArgSettings::TakesValue);
-        self = self.set(ArgSettings::UseValueDelimiter);
+        self.setb(ArgSettings::UseValueDelimiter);
         self.val_delim = Some(d.chars()
                                .nth(0)
                                .expect("Failed to get value_delimiter from arg"));
-        self
+        self.takes_value(true)
     }
 
     /// Specify multiple names for values of option arguments. These names are cosmetic only, used
@@ -1636,7 +1652,6 @@ impl<'a, 'b> Arg<'a, 'b> {
     ///     --io-files <INFILE> <OUTFILE>    Some help text
     /// ```
     pub fn value_names(mut self, names: &[&'b str]) -> Self {
-        self.setb(ArgSettings::TakesValue);
         if let Some(ref mut vals) = self.val_names {
             let mut l =  vals.len();
             for s in names {
@@ -1650,7 +1665,10 @@ impl<'a, 'b> Arg<'a, 'b> {
             }
             self.val_names = Some(vm);
         }
-        self
+        if names.len() > 1 {
+            self.num_vals = Some(names.len() as u64);
+        }
+        self.takes_value(true)
     }
 
     /// Specifies the name for value of option or positional arguments inside of help documenation.
@@ -1697,7 +1715,6 @@ impl<'a, 'b> Arg<'a, 'b> {
     ///     --config <FILE>     Some help text
     /// ```
     pub fn value_name(mut self, name: &'b str) -> Self {
-        self.setb(ArgSettings::TakesValue);
         if let Some(ref mut vals) = self.val_names {
             let l = vals.len();
             vals.insert(l, name);
@@ -1706,7 +1723,11 @@ impl<'a, 'b> Arg<'a, 'b> {
             vm.insert(0, name);
             self.val_names = Some(vm);
         }
-        self
+        let names = self.val_names.as_ref().unwrap().len();
+        if names > 1 {
+            self.num_vals = Some(names as u64);
+        }
+        self.takes_value(true)
     }
 
     /// Specifies the value of the argument when *not* specified at runtime.
@@ -1738,9 +1759,8 @@ impl<'a, 'b> Arg<'a, 'b> {
     /// assert_eq!(m.occurrences_of("opt"), 0);
     /// ```
     pub fn default_value(mut self, val: &'a str) -> Self {
-        self.setb(ArgSettings::TakesValue);
         self.default_val = Some(val);
-        self
+        self.takes_value(true)
     }
 
     /// When set to `true` the help string will be displayed on the line after the argument and
@@ -1823,8 +1843,7 @@ impl<'a, 'b> Arg<'a, 'b> {
     }
 }
 
-impl<'a, 'b, 'z> From<&'z Arg<'a, 'b>>
-    for Arg<'a, 'b> {
+impl<'a, 'b, 'z> From<&'z Arg<'a, 'b>> for Arg<'a, 'b> {
     fn from(a: &'z Arg<'a, 'b>) -> Self {
         Arg {
             name: a.name,
@@ -1845,6 +1864,98 @@ impl<'a, 'b, 'z> From<&'z Arg<'a, 'b>>
             settings: a.settings,
             val_delim: a.val_delim,
             default_val: a.default_val,
+            kind: a.kind,
+        }
+    }
+}
+
+impl<'a, 'b> Clone for Arg<'a, 'b> {
+    fn clone(&self) -> Self {
+        Arg {
+            name: self.name,
+            short: self.short,
+            long: self.long,
+            help: self.help,
+            index: self.index,
+            possible_vals: self.possible_vals.clone(),
+            blacklist: self.blacklist.clone(),
+            requires: self.requires.clone(),
+            num_vals: self.num_vals,
+            min_vals: self.min_vals,
+            max_vals: self.max_vals,
+            val_names: self.val_names.clone(),
+            group: self.group,
+            validator: self.validator.clone(),
+            overrides: self.overrides.clone(),
+            settings: self.settings,
+            val_delim: self.val_delim,
+            default_val: self.default_val,
+            kind: self.kind,
+        }
+    }
+}
+
+impl<'n, 'e> fmt::Display for Arg<'n, 'e> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self.kind {
+            ArgKind::Flag => {
+                if let Some(l) = self.long {
+                    write!(f, "--{}", l)
+                } else {
+                    write!(f, "-{}", self.short.unwrap())
+                }
+            },
+            ArgKind::Opt => {
+                debugln!("fn=fmt");
+                // Write the name such --long or -l
+                if let Some(l) = self.long {
+                    try!(write!(f, "--{}", l));
+                } else {
+                    try!(write!(f, "-{}", self.short.unwrap()));
+                }
+
+                // Write the values such as <name1> <name2>
+                if let Some(ref vec) = self.val_names {
+                    for (_, n) in vec {
+                        debugln!("writing val_name: {}", n);
+                        try!(write!(f, " <{}>", n));
+                    }
+                    let num = vec.len();
+                    if self.settings.is_set(ArgSettings::Multiple) && num == 1 {
+                        try!(write!(f, "..."));
+                    }
+                } else {
+                    let num = self.num_vals.unwrap_or(1);
+                    for _ in 0..num {
+                        try!(write!(f, " <{}>", self.name));
+                    }
+                    if self.settings.is_set(ArgSettings::Multiple) && num == 1 {
+                        try!(write!(f, "..."));
+                    }
+                }
+
+                Ok(())
+            },
+            ArgKind::Pos => {
+                if self.settings.is_set(ArgSettings::Required) {
+                    if let Some(ref names) = self.val_names {
+                        try!(write!(f, "{}", names.values().map(|n| format!("<{}>", n)).collect::<Vec<_>>().join(" ")));
+                    } else {
+                        try!(write!(f, "<{}>", self.name));
+                    }
+                } else {
+                    if let Some(ref names) = self.val_names {
+                        try!(write!(f, "{}", names.values().map(|n| format!("[{}]", n)).collect::<Vec<_>>().join(" ")));
+                    } else {
+                        try!(write!(f, "[{}]", self.name));
+                    }
+                }
+                if self.settings.is_set(ArgSettings::Multiple) && self.val_names.is_none() {
+                    try!(write!(f, "..."));
+                }
+
+                Ok(())
+            }
         }
     }
 }

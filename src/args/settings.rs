@@ -1,8 +1,11 @@
 use std::str::FromStr;
 use std::ascii::AsciiExt;
 
+pub const NO_SETTINGS: Flags = NONE;
+
 bitflags! {
     flags Flags: u8 {
+        const NONE       = 0b00000000,
         const REQUIRED   = 0b00000001,
         const MULTIPLE   = 0b00000010,
         const EMPTY_VALS = 0b00000100,
@@ -16,7 +19,7 @@ bitflags! {
 
 #[doc(hidden)]
 #[derive(Debug, Clone, Copy)]
-pub struct ArgFlags(Flags);
+pub struct ArgFlags(pub Flags);
 
 impl ArgFlags {
     pub fn new() -> Self {

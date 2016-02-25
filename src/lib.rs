@@ -406,6 +406,7 @@ extern crate yaml_rust;
 #[macro_use]
 extern crate bitflags;
 extern crate vec_map;
+extern crate libc;
 
 #[cfg(feature = "yaml")]
 pub use yaml_rust::YamlLoader;
@@ -423,6 +424,7 @@ mod fmt;
 mod suggestions;
 mod errors;
 mod osstringext;
+mod term;
 
 const INTERNAL_ERROR_MSG: &'static str = "Fatal internal error. Please consider filing a bug \
                                           report at https://github.com/kbknapp/clap-rs/issues";

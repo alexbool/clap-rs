@@ -25,7 +25,7 @@ macro_rules! write_arg_help {
             write_spaces!($longest + 4 - ($_self.to_string().len()), $w);
         }
         if let Some(h) = $_self.help {
-            write_arg_help!(@help $_self, $w, h, $tab, $longest, $nlh);
+            write_arg_help!(@help $_self, $w, h, $tab, $longest - 4, $nlh);
             write_arg_help!(@spec_vals $_self, $w, $skip_pv);
         }
     };
@@ -102,15 +102,61 @@ macro_rules! write_arg_help {
             }
         }
     };
-    (@help $_self:ident, $w:ident, $h:ident, $tab:ident, $longest:expr, $nlh:ident) => {
+    (@help $_self:ident, $w:ident, $h:ident, $tab:ident, $longest:expr, $nlh:ident) => {{
+        use term;
+        let mut h = String::new();
+        let spcs = if $nlh || $_self.settings.is_set(ArgSettings::NextLineHelp) {
+            8 // "tab" + "tab"
+        } else {
+            $longest + 12
+        };
+        // get terminal width
+        let term_w = term::dimensions().map(|(w, _)| w);
+
+        // determine if our help fits or needs to wrap
+        let too_long = term_w.is_some() && spcs + $h.len() >= term_w.unwrap_or(0);
+
+        // Is help on next line, if so newline + 2x tab
         if $nlh || $_self.settings.is_set(ArgSettings::NextLineHelp) {
             try!(write!($w, "\n{}{}", $tab, $tab));
         }
-        if $h.contains("{n}") {
-            if let Some(part) = $h.split("{n}").next() {
+
+        if too_long {
+            if let Some(width) = term_w {
+                h.push_str($h);
+                debugln!("width: {}", width);
+                // Determine how many newlines we need to insert
+                let avail_chars = width - spcs;
+                debugln!("avail_chars: {}", avail_chars);
+                let mut num_parts = $h.len()/avail_chars;
+                if $h.len() % avail_chars != 0 {
+                    num_parts += 1;
+                }
+                debugln!("num_parts: {}", num_parts);
+                for i in 1..num_parts {
+                    debugln!("i: {}", i);
+                    let idx = if i != num_parts {
+                        i * avail_chars
+                    } else {
+                        h.len() - 1
+                    };
+                    debugln!("idx: {}", idx);
+                    h.insert(idx, '{');
+                    h.insert(idx + 1, 'n');
+                    h.insert(idx + 2, '}');
+                }
+            }
+        }
+        let help = if !h.is_empty() {
+            &*h
+        } else {
+            $h
+        };
+        if help.contains("{n}") {
+            if let Some(part) = help.split("{n}").next() {
                 try!(write!($w, "{}", part));
             }
-            for part in $h.split("{n}").skip(1) {
+            for part in help.split("{n}").skip(1) {
                 try!(write!($w, "\n"));
                 if $nlh || $_self.settings.is_set(ArgSettings::NextLineHelp) {
                     try!(write!($w, "{}{}", $tab, $tab));
@@ -120,7 +166,7 @@ macro_rules! write_arg_help {
                 try!(write!($w, "{}", part));
             }
         } else {
-            try!(write!($w, "{}", $h));
+            try!(write!($w, "{}", help));
         }
-    };
+    }};
 }

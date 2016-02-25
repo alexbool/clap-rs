@@ -3,7 +3,7 @@ extern crate clap;
 use clap::{App, Arg, ErrorKind, SubCommand};
 
 #[test]
-fn multiple_values_of_option_long() {
+fn option_long() {
     let m = App::new("multiple_values")
         .arg(Arg::with_name("option")
             .long("option")
@@ -26,7 +26,7 @@ fn multiple_values_of_option_long() {
 }
 
 #[test]
-fn multiple_values_with_subcmd() {
+fn with_subcmd() {
     let m = App::new("multiple_values")
         .arg(Arg::with_name("option")
             .long("option")
@@ -50,7 +50,7 @@ fn multiple_values_with_subcmd() {
 }
 
 #[test]
-fn multiple_values_of_option_short() {
+fn option_short() {
     let m = App::new("multiple_values")
         .arg(Arg::with_name("option")
             .short("o")
@@ -73,7 +73,7 @@ fn multiple_values_of_option_short() {
 }
 
 #[test]
-fn multiple_values_of_option_mixed() {
+fn option_mixed() {
     let m = App::new("multiple_values")
         .arg(Arg::with_name("option")
             .long("option")
@@ -98,7 +98,7 @@ fn multiple_values_of_option_mixed() {
 }
 
 #[test]
-fn multiple_values_of_option_exact_exact() {
+fn option_exact_exact() {
     let m = App::new("multiple_values")
         .arg(Arg::with_name("option")
             .short("o")
@@ -122,7 +122,7 @@ fn multiple_values_of_option_exact_exact() {
 }
 
 #[test]
-fn multiple_values_of_option_exact_exact_not_mult() {
+fn option_exact_exact_not_mult() {
     let m = App::new("multiple_values")
         .arg(Arg::with_name("option")
             .short("o")
@@ -143,7 +143,7 @@ fn multiple_values_of_option_exact_exact_not_mult() {
 }
 
 #[test]
-fn multiple_values_of_option_exact_exact_mult() {
+fn option_exact_exact_mult() {
     let m = App::new("multiple_values")
         .arg(Arg::with_name("option")
             .short("o")
@@ -166,7 +166,7 @@ fn multiple_values_of_option_exact_exact_mult() {
 }
 
 #[test]
-fn multiple_values_of_option_exact_less() {
+fn option_exact_less() {
     let m = App::new("multiple_values")
         .arg(Arg::with_name("option")
             .short("o")
@@ -185,7 +185,7 @@ fn multiple_values_of_option_exact_less() {
 }
 
 #[test]
-fn multiple_values_of_option_exact_more() {
+fn option_exact_more() {
     let m = App::new("multiple_values")
         .arg(Arg::with_name("option")
             .short("o")
@@ -206,7 +206,7 @@ fn multiple_values_of_option_exact_more() {
 }
 
 #[test]
-fn multiple_values_of_option_min_exact() {
+fn option_min_exact() {
     let m = App::new("multiple_values")
         .arg(Arg::with_name("option")
             .short("o")
@@ -230,7 +230,7 @@ fn multiple_values_of_option_min_exact() {
 }
 
 #[test]
-fn multiple_values_of_option_min_less() {
+fn option_min_less() {
     let m = App::new("multiple_values")
         .arg(Arg::with_name("option")
             .short("o")
@@ -307,7 +307,7 @@ fn option_short_min_more_single_occur() {
 }
 
 #[test]
-fn multiple_values_of_option_max_exact() {
+fn option_max_exact() {
     let m = App::new("multiple_values")
         .arg(Arg::with_name("option")
             .short("o")
@@ -331,7 +331,7 @@ fn multiple_values_of_option_max_exact() {
 }
 
 #[test]
-fn multiple_values_of_option_max_less() {
+fn option_max_less() {
     let m = App::new("multiple_values")
         .arg(Arg::with_name("option")
             .short("o")
@@ -354,7 +354,7 @@ fn multiple_values_of_option_max_less() {
 }
 
 #[test]
-fn multiple_values_of_option_max_more() {
+fn option_max_more() {
     let m = App::new("multiple_values")
         .arg(Arg::with_name("option")
             .short("o")
@@ -375,7 +375,7 @@ fn multiple_values_of_option_max_more() {
 }
 
 #[test]
-fn multiple_values_of_positional() {
+fn positional() {
     let m = App::new("multiple_values")
         .arg(Arg::with_name("pos")
             .help("multiple positionals")
@@ -391,7 +391,7 @@ fn multiple_values_of_positional() {
 }
 
 #[test]
-fn multiple_values_of_positional_exact_exact() {
+fn positional_exact_exact() {
     let m = App::new("multiple_values")
         .arg(Arg::with_name("pos")
             .help("multiple positionals")
@@ -407,7 +407,7 @@ fn multiple_values_of_positional_exact_exact() {
 }
 
 #[test]
-fn multiple_values_of_positional_exact_less() {
+fn positional_exact_less() {
     let m = App::new("multiple_values")
         .arg(Arg::with_name("pos")
             .help("multiple positionals")
@@ -419,7 +419,7 @@ fn multiple_values_of_positional_exact_less() {
 }
 
 #[test]
-fn multiple_values_of_positional_exact_more() {
+fn positional_exact_more() {
     let m = App::new("multiple_values")
         .arg(Arg::with_name("pos")
             .help("multiple positionals")
@@ -427,11 +427,11 @@ fn multiple_values_of_positional_exact_more() {
         .get_matches_from_safe(vec!["myprog", "val1", "val2", "val3", "val4"]);
 
     assert!(m.is_err());
-    assert_eq!(m.unwrap_err().kind, ErrorKind::WrongNumberOfValues);
+    assert_eq!(m.unwrap_err().kind, ErrorKind::UnknownArgument);
 }
 
 #[test]
-fn multiple_values_of_positional_min_exact() {
+fn positional_min_exact() {
     let m = App::new("multiple_values")
         .arg(Arg::with_name("pos")
             .help("multiple positionals")
@@ -447,7 +447,7 @@ fn multiple_values_of_positional_min_exact() {
 }
 
 #[test]
-fn multiple_values_of_positional_min_less() {
+fn positional_min_less() {
     let m = App::new("multiple_values")
         .arg(Arg::with_name("pos")
             .help("multiple positionals")
@@ -459,7 +459,7 @@ fn multiple_values_of_positional_min_less() {
 }
 
 #[test]
-fn multiple_values_of_positional_min_more() {
+fn positional_min_more() {
     let m = App::new("multiple_values")
         .arg(Arg::with_name("pos")
             .help("multiple positionals")
@@ -475,7 +475,7 @@ fn multiple_values_of_positional_min_more() {
 }
 
 #[test]
-fn multiple_values_of_positional_max_exact() {
+fn positional_max_exact() {
     let m = App::new("multiple_values")
         .arg(Arg::with_name("pos")
             .help("multiple positionals")
@@ -491,7 +491,7 @@ fn multiple_values_of_positional_max_exact() {
 }
 
 #[test]
-fn multiple_values_of_positional_max_less() {
+fn positional_max_less() {
     let m = App::new("multiple_values")
         .arg(Arg::with_name("pos")
             .help("multiple positionals")
@@ -507,7 +507,7 @@ fn multiple_values_of_positional_max_less() {
 }
 
 #[test]
-fn multiple_values_of_positional_max_more() {
+fn positional_max_more() {
     let m = App::new("multiple_values")
         .arg(Arg::with_name("pos")
             .help("multiple positionals")
@@ -519,7 +519,7 @@ fn multiple_values_of_positional_max_more() {
 }
 
 #[test]
-fn multiple_values_sep_long_equals() {
+fn sep_long_equals() {
     let m = App::new("multiple_values")
         .arg(Arg::with_name("option")
             .long("option")
@@ -540,7 +540,7 @@ fn multiple_values_sep_long_equals() {
 }
 
 #[test]
-fn multiple_values_sep_long_space() {
+fn sep_long_space() {
     let m = App::new("multiple_values")
         .arg(Arg::with_name("option")
             .long("option")
@@ -562,7 +562,7 @@ fn multiple_values_sep_long_space() {
 }
 
 #[test]
-fn multiple_values_sep_short_equals() {
+fn sep_short_equals() {
     let m = App::new("multiple_values")
         .arg(Arg::with_name("option")
             .short("o")
@@ -583,7 +583,7 @@ fn multiple_values_sep_short_equals() {
 }
 
 #[test]
-fn multiple_values_sep_short_space() {
+fn sep_short_space() {
     let m = App::new("multiple_values")
         .arg(Arg::with_name("option")
             .short("o")
@@ -605,7 +605,7 @@ fn multiple_values_sep_short_space() {
 }
 
 #[test]
-fn multiple_values_sep_short_no_space() {
+fn sep_short_no_space() {
     let m = App::new("multiple_values")
         .arg(Arg::with_name("option")
             .short("o")
@@ -626,7 +626,7 @@ fn multiple_values_sep_short_no_space() {
 }
 
 #[test]
-fn multiple_values_sep_positional() {
+fn sep_positional() {
     let m = App::new("multiple_values")
         .arg(Arg::with_name("option")
             .help("multiple options")
@@ -645,7 +645,7 @@ fn multiple_values_sep_positional() {
 }
 
 #[test]
-fn multiple_values_different_sep() {
+fn different_sep() {
     let m = App::new("multiple_values")
         .arg(Arg::with_name("option")
             .long("option")
@@ -666,7 +666,7 @@ fn multiple_values_different_sep() {
 }
 
 #[test]
-fn multiple_values_different_sep_positional() {
+fn different_sep_positional() {
     let m = App::new("multiple_values")
         .arg(Arg::with_name("option")
             .help("multiple options")
@@ -685,7 +685,7 @@ fn multiple_values_different_sep_positional() {
 }
 
 #[test]
-fn multiple_values_no_sep() {
+fn no_sep() {
     let m = App::new("multiple_values")
         .arg(Arg::with_name("option")
             .long("option")
@@ -706,7 +706,7 @@ fn multiple_values_no_sep() {
 }
 
 #[test]
-fn multiple_values_no_sep_positional() {
+fn no_sep_positional() {
     let m = App::new("multiple_values")
         .arg(Arg::with_name("option")
             .help("multiple options")

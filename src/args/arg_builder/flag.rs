@@ -71,19 +71,22 @@ impl<'n, 'e> Switched<'n, 'e> for Flag<'n, 'e> {
 
 #[cfg(test)]
 mod test {
-    use super::FlagBuilder;
+    use super::Flag;
     use args::settings::ArgSettings;
+    use args::Arg;
 
     #[test]
     fn flagbuilder_display() {
-        let mut f = FlagBuilder::new("flg");
-        f.settings.set(ArgSettings::Multiple);
-        f.long = Some("flag");
+        let mut a = Arg::with_name("flg");
+        a.settings.set(ArgSettings::Multiple);
+        a.long = Some("flag");
+        let f = Flag::from(&a);
 
         assert_eq!(&*format!("{}", f), "--flag");
 
-        let mut f2 = FlagBuilder::new("flg");
-        f2.short = Some('f');
+        let mut a2 = Arg::with_name("flg");
+        a2.short = Some('f');
+        let f2 = Flag::from(&a2);
 
         assert_eq!(&*format!("{}", f2), "-f");
     }

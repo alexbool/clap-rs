@@ -96,52 +96,56 @@ impl<'n, 'e> HasValues<'n, 'e> for Positional<'n, 'e> {
         self.validator.as_ref()
     }
     fn min_vals(&self) -> Option<u64> { self.min_vals }
-    fn short(&self) -> Option<char> { None }
-    fn long(&self) -> Option<&'e str> { None }
     fn val_delim(&self) -> Option<char> { self.val_delim }
 }
 
 #[cfg(test)]
 mod test {
-    use super::PosBuilder;
-    use args::settings::ArgSettings;
     use vec_map::VecMap;
+
+    use super::Positional;
+    use args::settings::ArgSettings;
+    use args::Arg;
 
     #[test]
     fn display_mult() {
-        let mut p = PosBuilder::new("pos", 1);
-        p.settings.set(ArgSettings::Multiple);
+        let mut a = Arg::with_name("pos");
+        a.settings.set(ArgSettings::Multiple);
+        let p = Positional::from(&a);
 
         assert_eq!(&*format!("{}", p), "[pos]...");
     }
 
     #[test]
     fn display_required() {
-        let mut p2 = PosBuilder::new("pos", 1);
-        p2.settings.set(ArgSettings::Required);
+        let mut a2 = Arg::with_name("pos");
+        a2.settings.set(ArgSettings::Required);
+        let p2 = Positional::from(&a2);
 
         assert_eq!(&*format!("{}", p2), "<pos>");
     }
 
     #[test]
     fn display_val_names() {
-        let mut p2 = PosBuilder::new("pos", 1);
+        let mut a2 = Arg::with_name("pos");
         let mut vm = VecMap::new();
         vm.insert(0, "file1");
         vm.insert(1, "file2");
-        p2.val_names = Some(vm);
+        a2.val_names = Some(vm);
+        let p2 = Positional::from(&a2);
 
         assert_eq!(&*format!("{}", p2), "[file1] [file2]");
     }
 
     #[test]
     fn display_val_names_req() {
-        let mut p2 = PosBuilder::new("pos", 1);
-        p2.settings.set(ArgSettings::Required);
+        let mut a2 = Arg::with_name("pos");
+        a2.settings.set(ArgSettings::Required);
         let mut vm = VecMap::new();
         vm.insert(0, "file1");
         vm.insert(1, "file2");
-        p2.val_names = Some(vm);
+        a2.val_names = Some(vm);
+        let p2 = Positional::from(&a2);
 
         assert_eq!(&*format!("{}", p2), "<file1> <file2>");
     }

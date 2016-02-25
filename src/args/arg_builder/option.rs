@@ -117,15 +117,17 @@ impl<'n, 'e> Switched<'n, 'e> for Opt<'n, 'e> {
 
 #[cfg(test)]
 mod test {
-    use super::OptBuilder;
+    use super::Opt;
     use vec_map::VecMap;
     use args::settings::ArgSettings;
+    use args::Arg;
 
     #[test]
     fn optbuilder_display1() {
-        let mut o = OptBuilder::new("opt");
-        o.long = Some("option");
-        o.settings.set(ArgSettings::Multiple);
+        let mut a = Arg::with_name("opt");
+        a.long = Some("option");
+        a.settings.set(ArgSettings::Multiple);
+        let o = Opt::from(&a);
 
         assert_eq!(&*format!("{}", o), "--option <opt>...");
     }
@@ -136,9 +138,10 @@ mod test {
         v_names.insert(0, "file");
         v_names.insert(1, "name");
 
-        let mut o2 = OptBuilder::new("opt");
-        o2.short = Some('o');
-        o2.val_names = Some(v_names);
+        let mut a2 = Arg::with_name("opt");
+        a2.short = Some('o');
+        a2.val_names = Some(v_names);
+        let o2 = Opt::from(&a2);
 
         assert_eq!(&*format!("{}", o2), "-o <file> <name>");
     }
@@ -149,10 +152,11 @@ mod test {
         v_names.insert(0, "file");
         v_names.insert(1, "name");
 
-        let mut o2 = OptBuilder::new("opt");
-        o2.short = Some('o');
-        o2.val_names = Some(v_names);
-        o2.settings.set(ArgSettings::Multiple);
+        let mut a2 = Arg::with_name("opt");
+        a2.short = Some('o');
+        a2.val_names = Some(v_names);
+        a2.settings.set(ArgSettings::Multiple);
+        let o2 = Opt::from(&a2);
 
         assert_eq!(&*format!("{}", o2), "-o <file> <name>");
     }

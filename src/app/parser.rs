@@ -9,9 +9,9 @@ use std::os::unix::ffi::OsStrExt;
 use vec_map::VecMap;
 
 use app::App;
-use args::{Arg, FlagBuilder, OptBuilder, ArgGroup, PosBuilder};
+use args::{Arg, Flag, Opt, ArgGroup, Positional};
 use app::settings::{AppSettings, AppFlags};
-use args::{AnyArg, ArgMatcher};
+use args::{Any, HasValues, Switched, ArgMatcher};
 use args::settings::{ArgSettings, ArgFlags};
 use errors::{ErrorKind, Error};
 use errors::Result as ClapResult;
@@ -32,11 +32,11 @@ pub struct Parser<'a, 'b> where 'a: 'b {
     long_list: Vec<&'b str>,
     blacklist: Vec<&'b str>,
     // A list of possible flags
-    flags: Vec<FlagBuilder<'a, 'b>>,
+    flags: Vec<Flag<'a, 'b>>,
     // A list of possible options
-    opts: Vec<OptBuilder<'a, 'b>>,
+    opts: Vec<Opt<'a, 'b>>,
     // A list of positional arguments
-    positionals: VecMap<PosBuilder<'a, 'b>>,
+    positionals: VecMap<Positional<'a, 'b>>,
     // A list of subcommands
     #[doc(hidden)]
     pub subcommands: Vec<App<'a, 'b>>,
@@ -74,7 +74,10 @@ impl<'a, 'b> Default for Parser<'a, 'b> {
 macro_rules! parse_positional {
     ($_self:ident, $p:ident, $arg_os:ident, $pos_only:ident, $pos_counter:ident, $matcher:ident) => {
         debugln!("macro=parse_positional!;");
-        validate_multiples!($_self, $p, $matcher);
+        if $matcher.contains(&$p.name) && !$matcher.needs_more_vals($p) {
+            // Not the first time, and we don't allow multiples
+            return Err(Error::unexpected_multiple_usage($p, &*$_self.create_current_usage($matcher)))
+        }
 
         if let Err(e) = $_self.add_val_to_arg($p, &$arg_os, $matcher) {
             return Err(e);
@@ -88,10 +91,13 @@ macro_rules! parse_positional {
         $matcher.inc_occurrence_of($p.name);
         let _ = $_self.groups_for_arg($p.name).and_then(|vec| Some($matcher.inc_occurrences_of(&*vec)));
         arg_post_processing!($_self, $p, $matcher);
+
+        debug!("Positional needs more vals...");
         // Only increment the positional counter if it doesn't allow multiples
-        if !$p.settings.is_set(ArgSettings::Multiple) {
+        if !$matcher.needs_more_vals($p) {
+            sdebugln!("Yes");
             $pos_counter += 1;
-        }
+        } else { sdebugln!("No"); }
     };
 }
 
@@ -140,10 +146,16 @@ impl<'a, 'b> Parser<'a, 'b> where 'a: 'b {
         }
         if a.is_set(ArgSettings::Required) {
             self.required.push(a.name);
+            if let Some(ref reqs) = a.requires {
+                for r in reqs {
+                    self.required.push(r);
+                }
+            }
         }
         if a.index.is_some() || (a.short.is_none() && a.long.is_none()) {
             let i = if a.index.is_none() {
-                (self.positionals.len() + 1)
+                let i = self.positionals.len() + 1;
+                i
             } else {
                 a.index.unwrap() as usize
             };
@@ -151,14 +163,20 @@ impl<'a, 'b> Parser<'a, 'b> where 'a: 'b {
                 format!("Argument \"{}\" has the same index as another positional \
                     argument\n\n\tPerhaps try .multiple(true) to allow one positional argument \
                     to take multiple values", a.name));
-            let pb = PosBuilder::from_arg(&a, i as u64, &mut self.required);
-            self.positionals.insert(i, pb);
+            let mut p = Positional::from(a);
+            p.a.index = Some(i as u64);
+            self.positionals.insert(i, p);
         } else if a.is_set(ArgSettings::TakesValue) {
-            let ob = OptBuilder::from_arg(&a, &mut self.required);
-            self.opts.push(ob);
+            let mut o = Opt::from(a);
+
+            if let Some(ref vec) = a.val_names {
+                if vec.len() > 1 {
+                    o.a.num_vals = Some(vec.len() as u64);
+                }
+            }
+            self.opts.push(o);
         } else {
-            let fb = FlagBuilder::from(a);
-            self.flags.push(fb);
+            self.flags.push(Flag::from(a));
         }
         if a.is_set(ArgSettings::Global) {
             assert!(!a.is_set(ArgSettings::Required),
@@ -364,7 +382,7 @@ impl<'a, 'b> Parser<'a, 'b> where 'a: 'b {
         assert!(!self.positionals.values()
                      .any(|a|
                          a.settings.is_set(ArgSettings::Multiple) &&
-                         (a.index as usize != self.positionals.len())
+                         (a.index.unwrap() != self.positionals.len() as u64)
                      ),
                 "Only the positional argument with the highest index may accept multiple values");
 
@@ -382,7 +400,7 @@ impl<'a, 'b> Parser<'a, 'b> where 'a: 'b {
                     "Found positional argument which is not required with a lower index than a \
                     required positional argument: {:?} index {}",
                     p.name,
-                    p.index);
+                    p.index.unwrap());
             }
         }
     }
@@ -392,7 +410,7 @@ impl<'a, 'b> Parser<'a, 'b> where 'a: 'b {
             // We have to create a new scope in order to tell rustc the borrow of `sc` is
             // done and to recursively call this method
             {
-                for a in &self.global_args {
+                for a in self.global_args.iter() {
                     sc.p.add_arg(a);
                 }
             }
@@ -436,6 +454,7 @@ impl<'a, 'b> Parser<'a, 'b> where 'a: 'b {
             if !pos_only {
                 let pos_sc = self.subcommands.iter().any(|s| &s.p.meta.name[..] == &*arg_os);
                 if (!starts_new_arg || self.is_set(AppSettings::AllowLeadingHyphen)) && !pos_sc {
+                    debugln!("Needs val of...{:?}", needs_val_of);
                     // Check to see if parsing a value from an option
                     if let Some(nvo) = needs_val_of {
                         // get the OptBuilder so we can check the settings
@@ -752,15 +771,18 @@ impl<'a, 'b> Parser<'a, 'b> where 'a: 'b {
             if self.help_short.is_none() && !self.short_list.contains(&'h') {
                 self.help_short = Some('h');
             }
-            let arg = FlagBuilder {
-                name: "hclap_help".into(),
-                short: self.help_short,
-                long: Some("help".into()),
-                help: Some("Prints help information".into()),
-                blacklist: None,
-                requires: None,
-                overrides: None,
-                settings: ArgFlags::new(),
+            let arg = Flag {
+                a: Arg {
+                    name: "hclap_help".into(),
+                    short: self.help_short,
+                    long: Some("help".into()),
+                    help: Some("Prints help information".into()),
+                    blacklist: None,
+                    requires: None,
+                    overrides: None,
+                    settings: ArgFlags::new(),
+                    ..Default::default()
+                },
             };
             self.long_list.push("help".into());
             self.flags.push(arg);
@@ -771,15 +793,18 @@ impl<'a, 'b> Parser<'a, 'b> where 'a: 'b {
                 self.version_short = Some('V');
             }
             // name is "vclap_version" because flags are sorted by name
-            let arg = FlagBuilder {
-                name: "vclap_version".into(),
-                short: self.version_short,
-                long: Some("version".into()),
-                help: Some("Prints version information".into()),
-                blacklist: None,
-                requires: None,
-                overrides: None,
-                settings: ArgFlags::new(),
+            let arg = Flag {
+                a: Arg {
+                    name: "vclap_version".into(),
+                    short: self.version_short,
+                    long: Some("version".into()),
+                    help: Some("Prints version information".into()),
+                    blacklist: None,
+                    requires: None,
+                    overrides: None,
+                    settings: ArgFlags::new(),
+                    ..Default::default()
+                },
             };
             self.long_list.push("version".into());
             self.flags.push(arg);
@@ -962,7 +987,7 @@ impl<'a, 'b> Parser<'a, 'b> where 'a: 'b {
 
     fn parse_opt(&self,
                  val: Option<&OsStr>,
-                 opt: &OptBuilder<'a, 'b>,
+                 opt: &Opt<'a, 'b>,
                  matcher: &mut ArgMatcher<'a>)
                  -> ClapResult<Option<&'a str>> {
         debugln!("fn=parse_opt;");
@@ -975,7 +1000,7 @@ impl<'a, 'b> Parser<'a, 'b> where 'a: 'b {
                 sdebugln!("Found Empty - Error");
                 return Err(Error::empty_value(opt, &*self.create_current_usage(matcher)));
             }
-            sdebugln!("Found - {:?}, len: {}", v, v.len());
+            sdebugln!("Found - {:?}, len: {}", v, v.len_());
             try!(self.add_val_to_arg(opt, v, matcher));
         } else { sdebugln!("None"); }
 
@@ -994,7 +1019,7 @@ impl<'a, 'b> Parser<'a, 'b> where 'a: 'b {
                         val: &OsStr,
                         matcher: &mut ArgMatcher<'a>)
                         -> ClapResult<Option<&'a str>>
-        where A: AnyArg<'a, 'b> + Display {
+        where A: HasValues<'a, 'b> + Display + Any<'a, 'b> {
         debugln!("fn=add_val_to_arg;");
         let mut ret = None;
         if let Some(delim) = arg.val_delim() {
@@ -1008,7 +1033,7 @@ impl<'a, 'b> Parser<'a, 'b> where 'a: 'b {
     }
 
     fn add_single_val_to_arg<A>(&self, arg: &A, v: &OsStr, matcher: &mut ArgMatcher<'a>) -> ClapResult<Option<&'a str>>
-        where A: AnyArg<'a, 'b>
+        where A: HasValues<'a, 'b> + Any<'a, 'b>
     {
         debugln!("adding val: {:?}", v);
         matcher.add_val_to(arg.name(), v);
@@ -1026,7 +1051,7 @@ impl<'a, 'b> Parser<'a, 'b> where 'a: 'b {
     }
 
     fn validate_value<A>(&self, arg: &A, val: &OsStr, matcher: &ArgMatcher<'a>) -> ClapResult<Option<&'a str>>
-        where A: AnyArg<'a, 'b> {
+        where A: HasValues<'a, 'b> + Any<'a, 'b> {
         debugln!("fn=validate_value; val={:?}", val);
         if self.is_set(AppSettings::StrictUtf8) && val.to_str().is_none() {
             return Err(Error::invalid_utf8(&*self.create_current_usage(matcher)));
@@ -1051,15 +1076,20 @@ impl<'a, 'b> Parser<'a, 'b> where 'a: 'b {
                 return Err(Error::value_validation(e));
             }
         }
+        debug!("Needs more vals...");
         if matcher.needs_more_vals(arg) {
+            sdebugln!("Yes");
             return Ok(Some(arg.name()));
-        }
+        } else { sdebugln!("No"); }
         Ok(None)
     }
 
-    fn parse_flag(&self, flag: &FlagBuilder<'a, 'b>, matcher: &mut ArgMatcher<'a>) -> ClapResult<()> {
+    fn parse_flag(&self, flag: &Flag<'a, 'b>, matcher: &mut ArgMatcher<'a>) -> ClapResult<()> {
         debugln!("fn=parse_flag;");
-        validate_multiples!(self, flag, matcher);
+        if matcher.contains(&flag.name) && !flag.is_set(ArgSettings::Multiple) {
+            // Not the first time, and we don't allow multiples
+            return Err(Error::unexpected_multiple_usage(flag, &*self.create_current_usage(matcher)))
+        }
 
         matcher.inc_occurrence_of(flag.name);
         // Increment or create the group "args"
@@ -1139,7 +1169,7 @@ impl<'a, 'b> Parser<'a, 'b> where 'a: 'b {
     }
 
     fn _validate_num_vals<A>(&self, a: &A, ma: &MatchedArg, matcher: &ArgMatcher) -> ClapResult<()>
-        where A: AnyArg<'a, 'b>
+        where A: HasValues<'a, 'b> + Any<'a, 'b>
     {
         debugln!("fn=_validate_num_vals;");
         if let Some(num) = a.num_vals() {
@@ -1231,7 +1261,7 @@ impl<'a, 'b> Parser<'a, 'b> where 'a: 'b {
         Ok(())
     }
 
-    fn _validate_blacklist_required<A>(&self, a: &A, matcher: &ArgMatcher) -> bool where A: AnyArg<'a, 'b> {
+    fn _validate_blacklist_required<A>(&self, a: &A, matcher: &ArgMatcher) -> bool where A: Any<'a, 'b> {
         if let Some(bl) = a.blacklist() {
             for n in bl.iter() {
                 if matcher.contains(n)

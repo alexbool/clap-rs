@@ -6,7 +6,7 @@ use vec_map::VecMap;
 
 use args::{ArgMatches, MatchedArg, SubCommand};
 use args::settings::ArgSettings;
-use args::AnyArg;
+use args::{Any, HasValues};
 
 #[doc(hidden)]
 #[allow(missing_debug_implementations)]
@@ -96,20 +96,22 @@ impl<'a> ArgMatcher<'a> {
     }
 
     pub fn needs_more_vals<'b, A>(&self, o: &A) -> bool
-        where A: AnyArg<'a, 'b> {
+        where A: HasValues<'a, 'b> + Any<'a, 'b> {
         if let Some(ma) = self.get(o.name()) {
-            if let Some(num) = o.num_vals() {
+            let res = if let Some(num) = o.num_vals() {
                 return if o.is_set(ArgSettings::Multiple) {
                     ((ma.vals.len() as u64) % num) != 0
                 } else {
                     num != (ma.vals.len() as u64)
                 };
             } else if let Some(num) = o.max_vals() {
-                return !((ma.vals.len() as u64) > num);
+                !((ma.vals.len() as u64) > num)
             } else if o.min_vals().is_some() {
-                return true;
-            }
-            return o.is_set(ArgSettings::Multiple);
+                true
+            } else {
+                false
+            };
+            return res || o.is_set(ArgSettings::Multiple);
         }
         true
     }

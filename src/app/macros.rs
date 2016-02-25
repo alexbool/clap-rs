@@ -73,7 +73,7 @@ macro_rules! arg_post_processing {
 
 macro_rules! _handle_group_reqs{
     ($me:ident, $arg:ident) => ({
-        use args::AnyArg;
+        use args::Any;
         debugln!("macro=_handle_group_reqs!;");
         for grp in $me.groups.values() {
             let mut found = false;

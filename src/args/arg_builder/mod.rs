@@ -1,6 +1,6 @@
-pub use self::flag::FlagBuilder;
-pub use self::option::OptBuilder;
-pub use self::positional::PosBuilder;
+pub use self::flag::Flag;
+pub use self::option::Opt;
+pub use self::positional::Positional;
 
 #[macro_use]
 mod macros;

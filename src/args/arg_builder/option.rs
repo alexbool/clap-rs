@@ -2,105 +2,19 @@ use std::rc::Rc;
 use std::fmt::{Display, Formatter, Result};
 use std::result::Result as StdResult;
 use std::io;
+use std::ops::Deref;
 
-use vec_map::VecMap;
-
-use args::{AnyArg, Arg};
-use args::settings::{ArgFlags, ArgSettings};
+use args::{Any, Switched, HasValues, Arg};
+use args::settings::ArgSettings;
 
 #[allow(missing_debug_implementations)]
 #[doc(hidden)]
-pub struct OptBuilder<'n, 'e> {
-    pub name: &'n str,
-    pub short: Option<char>,
-    pub long: Option<&'e str>,
-    pub help: Option<&'e str>,
-    pub blacklist: Option<Vec<&'e str>>,
-    pub possible_vals: Option<Vec<&'e str>>,
-    pub requires: Option<Vec<&'e str>>,
-    pub num_vals: Option<u64>,
-    pub min_vals: Option<u64>,
-    pub max_vals: Option<u64>,
-    pub val_names: Option<VecMap<&'e str>>,
-    pub validator: Option<Rc<Fn(String) -> StdResult<(), String>>>,
-    pub overrides: Option<Vec<&'e str>>,
-    pub settings: ArgFlags,
-    pub val_delim: Option<char>,
-    pub default_val: Option<&'n str>,
+pub struct Opt<'n, 'e> where 'n: 'e {
+    #[doc(hidden)]
+    pub a: Arg<'n, 'e>,
 }
 
-impl<'n, 'e> Default for OptBuilder<'n, 'e> {
-    fn default() -> Self {
-        OptBuilder {
-            name: "",
-            short: None,
-            long: None,
-            help: None,
-            blacklist: None,
-            possible_vals: None,
-            requires: None,
-            num_vals: None,
-            min_vals: None,
-            max_vals: None,
-            val_names: None,
-            validator: None,
-            overrides: None,
-            settings: ArgFlags::new(),
-            val_delim: Some(','),
-            default_val: None,
-        }
-    }
-}
-
-impl<'n, 'e> OptBuilder<'n, 'e> {
-    pub fn new(name: &'n str) -> Self {
-        OptBuilder {
-            name: name,
-            ..Default::default()
-        }
-    }
-
-    pub fn from_arg(a: &Arg<'n, 'e>, reqs: &mut Vec<&'e str>) -> Self {
-        assert!(a.short.is_some() || a.long.is_some(),
-            format!("Argument \"{}\" has takes_value(true), yet neither a short() or long() \
-                was supplied", a.name));
-
-        // No need to check for .index() as that is handled above
-        let mut ob = OptBuilder {
-            name: a.name,
-            short: a.short,
-            long: a.long,
-            help: a.help,
-            num_vals: a.num_vals,
-            min_vals: a.min_vals,
-            max_vals: a.max_vals,
-            val_names: a.val_names.clone(),
-            val_delim: a.val_delim,
-            blacklist: a.blacklist.clone(),
-            overrides: a.overrides.clone(),
-            requires: a.requires.clone(),
-            possible_vals: a.possible_vals.clone(),
-            settings: a.settings,
-            default_val: a.default_val,
-            ..Default::default()
-        };
-        if let Some(ref vec) = ob.val_names {
-            if vec.len() > 1 {
-                ob.num_vals = Some(vec.len() as u64);
-            }
-        }
-        if let Some(ref p) = a.validator {
-            ob.validator = Some(p.clone());
-        }
-        // If the arg is required, add all it's requirements to master required list
-        if a.is_set(ArgSettings::Required) {
-            if let Some(ref areqs) = a.requires {
-                for r in areqs { reqs.push(*r); }
-            }
-        }
-        ob
-    }
-
+impl<'n, 'e> Opt<'n, 'e> {
     pub fn write_help<W: io::Write>(&self, w: &mut W, tab: &str, longest: usize, skip_pv: bool, nlh: bool) -> io::Result<()> {
         debugln!("fn=write_help");
         write_arg_help!(@opt self, w, tab, longest, skip_pv, nlh);
@@ -108,7 +22,34 @@ impl<'n, 'e> OptBuilder<'n, 'e> {
     }
 }
 
-impl<'n, 'e> Display for OptBuilder<'n, 'e> {
+impl<'n, 'e, 'z> From<&'z Arg<'n, 'e>> for Opt<'n, 'e> {
+    fn from(a: &'z Arg<'n, 'e>) -> Self {
+        Opt {
+            a: Arg {
+                name: a.name,
+                help: a.help,
+                index: a.index,
+                blacklist: a.blacklist.clone(),
+                possible_vals: a.possible_vals.clone(),
+                requires: a.requires.clone(),
+                group: a.group,
+                val_names: a.val_names.clone(),
+                num_vals: a.num_vals,
+                max_vals: a.max_vals,
+                min_vals: a.min_vals,
+                validator: a.validator.clone(),
+                overrides: a.overrides.clone(),
+                settings: a.settings,
+                val_delim: a.val_delim,
+                default_val: a.default_val,
+                short: a.short,
+                long: a.long,
+            }
+        }
+    }
+}
+
+impl<'n, 'e> Display for Opt<'n, 'e> {
     fn fmt(&self, f: &mut Formatter) -> Result {
         debugln!("fn=fmt");
         // Write the name such --long or -l
@@ -142,14 +83,23 @@ impl<'n, 'e> Display for OptBuilder<'n, 'e> {
     }
 }
 
-impl<'n, 'e> AnyArg<'n, 'e> for OptBuilder<'n, 'e> {
+impl<'n, 'e> Deref for Opt<'n, 'e> {
+    type Target = Arg<'n, 'e>;
+    fn deref(&self) -> &Self::Target {
+        &self.a
+    }
+}
+
+impl<'n, 'e> Any<'n, 'e> for Opt<'n, 'e> {
     fn name(&self) -> &'n str { self.name }
+    fn is_set(&self, s: ArgSettings) -> bool { self.settings.is_set(s) }
+    fn set(&mut self, s: ArgSettings) { self.a.settings.set(s) }
     fn overrides(&self) -> Option<&[&'e str]> { self.overrides.as_ref().map(|o| &o[..]) }
     fn requires(&self) -> Option<&[&'e str]> { self.requires.as_ref().map(|o| &o[..]) }
     fn blacklist(&self) -> Option<&[&'e str]> { self.blacklist.as_ref().map(|o| &o[..]) }
-    fn is_set(&self, s: ArgSettings) -> bool { self.settings.is_set(s) }
-    fn has_switch(&self) -> bool { true }
-    fn set(&mut self, s: ArgSettings) { self.settings.set(s) }
+}
+
+impl<'n, 'e> HasValues<'n, 'e> for Opt<'n, 'e> {
     fn max_vals(&self) -> Option<u64> { self.max_vals }
     fn num_vals(&self) -> Option<u64> { self.num_vals }
     fn possible_vals(&self) -> Option<&[&'e str]> { self.possible_vals.as_ref().map(|o| &o[..]) }
@@ -157,9 +107,12 @@ impl<'n, 'e> AnyArg<'n, 'e> for OptBuilder<'n, 'e> {
         self.validator.as_ref()
     }
     fn min_vals(&self) -> Option<u64> { self.min_vals }
+    fn val_delim(&self) -> Option<char> { self.val_delim }
+}
+
+impl<'n, 'e> Switched<'n, 'e> for Opt<'n, 'e> {
     fn short(&self) -> Option<char> { self.short }
     fn long(&self) -> Option<&'e str> { self.long }
-    fn val_delim(&self) -> Option<char> { self.val_delim }
 }
 
 #[cfg(test)]

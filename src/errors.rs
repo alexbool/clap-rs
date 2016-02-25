@@ -8,7 +8,7 @@ use std::result::Result as StdResult;
 
 use fmt::Format;
 use suggestions;
-use args::any_arg::AnyArg;
+use args::Any;
 
 /// Short hand for result type
 pub type Result<T> = StdResult<T, Error>;
@@ -333,7 +333,7 @@ impl Error {
 
     #[doc(hidden)]
     pub fn argument_conflict<'a, 'b, A, O, U>(arg: &A, other: Option<O>, usage: U) -> Self
-        where A: AnyArg<'a, 'b>,
+        where A: Any<'a, 'b>,
               O: Into<String>,
               U: Display
     {
@@ -361,7 +361,7 @@ impl Error {
 
     #[doc(hidden)]
     pub fn empty_value<'a, 'b, A, U>(arg: &A, usage: U) -> Self
-        where A: AnyArg<'a, 'b>,
+        where A: Any<'a, 'b>,
               U: Display
     {
         Error {
@@ -382,7 +382,7 @@ impl Error {
     pub fn invalid_value<'a, 'b, B, G, A, U>(bad_val: B, good_vals: &[G], arg: &A, usage: U) -> Self
         where B: AsRef<str>,
               G: AsRef<str> + Display,
-              A: AnyArg<'a, 'b>,
+              A: Any<'a, 'b>,
               U: Display
     {
         let suffix = suggestions::did_you_mean_suffix(bad_val.as_ref(),
@@ -497,7 +497,7 @@ impl Error {
     #[doc(hidden)]
     pub fn too_many_values<'a, 'b, V, A, U>(val: V, arg: &A, usage: U) -> Self
         where V: AsRef<str> + Display + ToOwned,
-              A: AnyArg<'a, 'b>,
+              A: Any<'a, 'b>,
               U: Display
     {
         let v = val.as_ref();
@@ -518,7 +518,7 @@ impl Error {
 
     #[doc(hidden)]
     pub fn too_few_values<'a, 'b, A, U>(arg: &A, min_vals: u64, curr_vals: usize, usage: U) -> Self
-        where A: AnyArg<'a, 'b>,
+        where A: Any<'a, 'b>,
               U: Display
     {
         Error {
@@ -553,7 +553,7 @@ impl Error {
 
     #[doc(hidden)]
     pub fn wrong_number_of_values<'a, 'b, A, S, U>(arg: &A, num_vals: u64, curr_vals: usize, suffix: S, usage: U) -> Self
-        where A: AnyArg<'a, 'b>,
+        where A: Any<'a, 'b>,
               S: Display,
               U: Display
     {
@@ -576,7 +576,7 @@ impl Error {
 
     #[doc(hidden)]
     pub fn unexpected_multiple_usage<'a, 'b, A, U>(arg: &A, usage: U) -> Self
-        where A: AnyArg<'a, 'b>,
+        where A: Any<'a, 'b>,
               U: Display
     {
         Error {

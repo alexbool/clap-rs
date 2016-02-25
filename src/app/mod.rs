@@ -17,7 +17,7 @@ use std::borrow::Borrow;
 #[cfg(feature = "yaml")]
 use yaml_rust::Yaml;
 
-use args::{Arg, AnyArg, ArgGroup, ArgMatches, ArgMatcher};
+use args::{Arg, Any, ArgGroup, ArgMatches, ArgMatcher};
 use app::parser::Parser;
 use errors::Error;
 use errors::Result as ClapResult;
